@@ -76,7 +76,7 @@ if __name__ == '__main__':
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     
-    model_name = 'conditional_pixelcnn_' + "_" if args.conditional else 'pixelcnn_' + "_"
+    model_name = 'conditional_pixelcnn' + "_" if args.conditional else 'pixelcnn' + "_"
     model_path = args.save_dir + '/'
     if args.load_params is not None:
         model_name = model_name + 'load_model'
@@ -161,7 +161,8 @@ if __name__ == '__main__':
         print('Model parameters loaded')
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    scheduler = lr_scheduler.StepLR(optimizer, step_size=1, gamma=args.lr_decay)
+    #scheduler = lr_scheduler.StepLR(optimizer, step_size=1, gamma=args.lr_decay)
+    scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.max_epochs, eta_min=1e-6)
     
     for epoch in tqdm(range(args.max_epochs)):
         train_or_test(model=model, 
