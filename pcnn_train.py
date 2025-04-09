@@ -97,7 +97,7 @@ if __name__ == '__main__':
     print(f"Device: {device}, Number of GPUs: {torch.cuda.device_count()}")
 
     # Data loading kwargs
-    kwargs = {'num_workers': 4, 'pin_memory': True, 'drop_last': True}
+    kwargs = {'num_workers': 8, 'pin_memory': True, 'drop_last': True}
 
     # Dataset setup 
     if "mnist" in args.dataset:
