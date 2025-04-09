@@ -136,7 +136,7 @@ class gated_resnet(nn.Module):
     def forward(self, og_x, labels=None, a=None):
         if self.conditional:
             assert labels is not None, "Labels required for conditional mode"
-            bias = self.embedding(labels).view(-1, 2 * self.num_filters, 1, 1).to(og_x.device)
+            bias = self.embedding(labels).view(-1, 2 * self.num_filters, 1, 1)
             #print("conditional model running")
         else:
             bias = None
