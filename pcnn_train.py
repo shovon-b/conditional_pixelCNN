@@ -125,6 +125,7 @@ if __name__ == '__main__':
 
     #set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(device)
     
     #Reminder:
     #In order to avoid pickling errors with the dataset on different machines, we set num_workers to 0.
