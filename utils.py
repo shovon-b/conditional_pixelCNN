@@ -103,6 +103,7 @@ def discretized_mix_logistic_loss(x, l):
     return -torch.sum(log_sum_exp(log_probs))
 
 
+
 def to_one_hot(tensor, n, fill_with=1.):
     # we perform one hot encore with respect to the last axis
     one_hot = torch.FloatTensor(tensor.size() + (n,)).zero_()
@@ -225,3 +226,42 @@ def save_images(tensor, images_folder_path, label=''):
         img = Image.fromarray((img_tensor.cpu().numpy().transpose(1, 2, 0) * 255).astype(np.uint8), mode='RGB')
         img_path = f"{images_folder_path}/{label}_image_{i+1:02d}.png"
         img.save(img_path)
+
+def discretized_mix_logistic_loss_per_sample(x, l):
+    """Log-likelihood for mixture of discretized logistics (per-sample loss)"""
+    x = x.permute(0, 2, 3, 1)
+    l = l.permute(0, 2, 3, 1)
+    xs = list(x.shape)
+    ls = list(l.shape)
+    nr_mix = int(ls[-1] / 10)
+    
+    # Unpack parameters
+    logit_probs = l[..., :nr_mix]
+    l = l[..., nr_mix:].contiguous().view(xs + [nr_mix * 3])
+    means = l[..., :nr_mix]
+    log_scales = torch.clamp(l[..., nr_mix:2*nr_mix], min=-7.)
+    coeffs = torch.tanh(l[..., 2*nr_mix:3*nr_mix])
+    
+    # Compute means with autoregression
+    x = x.contiguous().unsqueeze(-1)
+    m2 = means[:, :, :, 1, :] + coeffs[:, :, :, 0, :] * x[:, :, :, 0, :]
+    m3 = means[:, :, :, 2, :] + coeffs[:, :, :, 1, :] * x[:, :, :, 0, :] + coeffs[:, :, :, 2, :] * x[:, :, :, 1, :]
+    means = torch.cat([means[:, :, :, 0, :].unsqueeze(3), m2.unsqueeze(3), m3.unsqueeze(3)], dim=3)
+    
+    # Compute log probabilities
+    centered_x = x - means
+    inv_stdv = torch.exp(-log_scales)
+    cdf_plus = torch.sigmoid(inv_stdv * (centered_x + 1/255.))
+    cdf_min = torch.sigmoid(inv_stdv * (centered_x - 1/255.))
+    log_cdf_plus = (inv_stdv * (centered_x + 1/255.)) - F.softplus(inv_stdv * (centered_x + 1/255.))
+    log_one_minus_cdf_min = -F.softplus(inv_stdv * (centered_x - 1/255.))
+    log_prob = torch.where(x < -0.999, log_cdf_plus, 
+                          torch.where(x > 0.999, log_one_minus_cdf_min,
+                                      torch.log(cdf_plus - cdf_min + 1e-12)))
+    
+    log_prob = log_prob.sum(dim=3)  # Sum over RGB
+    log_prob += log_prob_from_logits(logit_probs)  # Add mixture weights
+    log_prob = torch.logsumexp(log_prob, dim=-1)  # Sum over mixtures
+    
+    # Sum over pixels (H, W) but keep batch dimension
+    return -log_prob.sum(dim=[1, 2])  # Shape: [batch_size]

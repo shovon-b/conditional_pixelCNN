@@ -113,7 +113,7 @@ skip connection parameter : 0 = no skip connection
                             2 = skip connection where skip input size === 2 * input size
 '''
 class gated_resnet(nn.Module):
-    def __init__(self, num_filters, conv_op, nonlinearity=concat_elu, skip_connection=0, conditional=False, num_class=4):
+    def __init__(self, num_filters, conv_op, nonlinearity=concat_elu, skip_connection=0, conditional=False, num_class=4, condition_strength='mild'):
         super(gated_resnet, self).__init__()
         self.num_filters=num_filters
         self.skip_connection = skip_connection
@@ -127,8 +127,10 @@ class gated_resnet(nn.Module):
         self.conv_out = conv_op(2 * num_filters, 2 * num_filters)        
         # Conditional setup
         self.conditional = conditional
+        self.strength = condition_strength
         if self.conditional:
             self.embedding = nn.Embedding(num_class, 2 * num_filters)
+            self.early_embedding = nn.Embedding(num_class, num_filters) if self.strength == 'strong' else None
         else:
             self.embedding = None
 
@@ -137,10 +139,11 @@ class gated_resnet(nn.Module):
         if self.conditional:
             assert labels is not None, "Labels required for conditional mode"
             bias = self.embedding(labels).view(-1, 2 * self.num_filters, 1, 1)
-            #print("conditional model running")
+            early_bias = self.early_embedding(labels).view(-1, self.num_filters, 1, 1) if self.strength == 'strong' else None             
+            
         else:
             bias = None
-        x = self.conv_input(self.nonlinearity(og_x))        
+        x = self.conv_input(self.nonlinearity(og_x)) + early_bias if self.strength == 'strong' else self.conv_input(self.nonlinearity(og_x))        
         if a is not None :
             x += self.nin_skip(self.nonlinearity(a))                
         x = self.nonlinearity(x)

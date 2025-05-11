@@ -1,2 +1,0 @@
-model_strong/** filter=lfs diff=lfs merge=lfs -text
-model_mild/** filter=lfs diff=lfs merge=lfs -text

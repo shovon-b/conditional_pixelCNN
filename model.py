@@ -3,17 +3,17 @@ from layers import *
 
 
 class PixelCNNLayer_up(nn.Module):
-    def __init__(self, nr_resnet, nr_filters, resnet_nonlinearity, conditional=False, num_class=4):
+    def __init__(self, nr_resnet, nr_filters, resnet_nonlinearity, conditional=False, num_class=4, condition_strength='mild'):
         super(PixelCNNLayer_up, self).__init__()
         self.nr_resnet = nr_resnet
         # stream from pixels above
         self.u_stream = nn.ModuleList([gated_resnet(nr_filters, down_shifted_conv2d,
-                                        resnet_nonlinearity, skip_connection=0, conditional=conditional, num_class=num_class)
+                                        resnet_nonlinearity, skip_connection=0, conditional=conditional, num_class=num_class, condition_strength=condition_strength)
                                             for _ in range(nr_resnet)])
 
         # stream from pixels above and to thes left
         self.ul_stream = nn.ModuleList([gated_resnet(nr_filters, down_right_shifted_conv2d,
-                                        resnet_nonlinearity, skip_connection=1, conditional=conditional, num_class=num_class)
+                                        resnet_nonlinearity, skip_connection=1, conditional=conditional, num_class=num_class, condition_strength=condition_strength)
                                             for _ in range(nr_resnet)])
 
     def forward(self, u, ul , labels=None):
@@ -29,17 +29,17 @@ class PixelCNNLayer_up(nn.Module):
 
 
 class PixelCNNLayer_down(nn.Module):
-    def __init__(self, nr_resnet, nr_filters, resnet_nonlinearity, conditional=False, num_class=4):
+    def __init__(self, nr_resnet, nr_filters, resnet_nonlinearity, conditional=False, num_class=4, condition_strength='mild'):
         super(PixelCNNLayer_down, self).__init__()
         self.nr_resnet = nr_resnet
         # stream from pixels above
         self.u_stream  = nn.ModuleList([gated_resnet(nr_filters, down_shifted_conv2d,
-                                        resnet_nonlinearity, skip_connection=1, conditional=conditional, num_class=num_class)
+                                        resnet_nonlinearity, skip_connection=1, conditional=conditional, num_class=num_class, condition_strength=condition_strength)
                                             for _ in range(nr_resnet)])
 
         # stream from pixels above and to thes left
         self.ul_stream = nn.ModuleList([gated_resnet(nr_filters, down_right_shifted_conv2d,
-                                        resnet_nonlinearity, skip_connection=2, conditional=conditional, num_class=num_class)
+                                        resnet_nonlinearity, skip_connection=2, conditional=conditional, num_class=num_class, condition_strength=condition_strength)
                                             for _ in range(nr_resnet)])
 
     def forward(self, u, ul, u_list, ul_list, labels=None):
@@ -52,13 +52,14 @@ class PixelCNNLayer_down(nn.Module):
 
 class PixelCNN(nn.Module):    
     def __init__(self, nr_resnet=5, nr_filters=80, nr_logistic_mix=10,
-                    resnet_nonlinearity='concat_elu', input_channels=3, conditional=False, num_class=4):
+                    resnet_nonlinearity='concat_elu', input_channels=3, conditional=False, num_class=4, condition_strength='mild'):
         super(PixelCNN, self).__init__()
         if resnet_nonlinearity == 'concat_elu' :
             self.resnet_nonlinearity = lambda x : concat_elu(x)
         else :
             raise Exception('right now only concat elu is supported as resnet nonlinearity.')
-        self.conditional= conditional
+        self.conditional = conditional
+        self.strength = condition_strength
         self.nr_filters = nr_filters
         self.input_channels = input_channels
         self.nr_logistic_mix = nr_logistic_mix
@@ -67,11 +68,11 @@ class PixelCNN(nn.Module):
 
         down_nr_resnet = [nr_resnet] + [nr_resnet + 1] * 2
         self.down_layers = nn.ModuleList([PixelCNNLayer_down(down_nr_resnet[i], nr_filters,
-                                                self.resnet_nonlinearity, conditional=self.conditional, num_class=num_class) 
+                                                self.resnet_nonlinearity, conditional=self.conditional, num_class=num_class, condition_strength=self.strength) 
                                           for i in range(3)])
 
         self.up_layers   = nn.ModuleList([PixelCNNLayer_up(nr_resnet, nr_filters,
-                                                self.resnet_nonlinearity,  conditional=self.conditional, num_class=num_class)
+                                                self.resnet_nonlinearity,  conditional=self.conditional, num_class=num_class, condition_strength=self.strength)
                                           for _ in range(3)])
 
         self.downsize_u_stream  = nn.ModuleList([down_shifted_conv2d(nr_filters, nr_filters,
@@ -102,15 +103,13 @@ class PixelCNN(nn.Module):
     def forward(self, x, labels=None, sample=False):
         if self.conditional is True and labels is None:
             raise Exception('Labels required for conditional generation')
-        # similar as done in the tf repo :
-        if self.init_padding is not sample:
-            #xs = [int(y) for y in x.size()]
+        
+        if self.init_padding is not sample:           
             xs = list(x.shape)
             padding = Variable(torch.ones(xs[0], 1, xs[2], xs[3]), requires_grad=False)
             self.init_padding = padding.cuda() if x.is_cuda else padding
 
-        if sample :
-            #xs = [int(y) for y in x.size()]
+        if sample :           
             xs = list(x.shape)
             padding = Variable(torch.ones(xs[0], 1, xs[2], xs[3]), requires_grad=False)
             padding = padding.cuda() if x.is_cuda else padding
