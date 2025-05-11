@@ -10,6 +10,7 @@ The project report can be found [here](report.pdf).
 
 To train the model use the following command prompt.
 
-```python pcnn_train.py --dataset cpen455 --save_interval 10 --nr_filters 60 --nr_logistic_mix 5 --batch_size 64 --max_epochs 2 --conditional True --condition_strength strong
+```bash
+python pcnn_train.py --dataset cpen455 --save_interval 10 --nr_filters 60 --nr_logistic_mix 5 --batch_size 64 --max_epochs 2 --conditional True --condition_strength strong ```
 
 Adjust the parameters as required. A detailed description for some other arguments not shown in the cmd prompt (such as enabling wandb) can be found in pcnn_train.py 
